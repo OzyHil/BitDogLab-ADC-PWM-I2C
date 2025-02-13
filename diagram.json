@@ -45,6 +45,13 @@
       "top": -135,
       "left": 101.4,
       "attrs": {}
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn1",
+      "top": -41.8,
+      "left": -86.4,
+      "attrs": { "color": "green" }
     }
   ],
   "connections": [
@@ -61,7 +68,9 @@
     [ "joystick1:GND", "pico:GND.5", "black", [ "v0" ] ],
     [ "joystick1:SEL", "pico:GP22", "gray", [ "v0" ] ],
     [ "joystick1:HORZ", "pico:GP26", "gold", [ "v0" ] ],
-    [ "joystick1:VERT", "pico:GP27", "orange", [ "v0" ] ]
+    [ "joystick1:VERT", "pico:GP27", "orange", [ "v0" ] ],
+    [ "pico:GND.1", "btn1:1.r", "black", [ "h-9.6", "v9.6" ] ],
+    [ "btn1:2.r", "pico:GP5", "green", [ "h9.8", "v9.8" ] ]
   ],
   "dependencies": {}
 }
