@@ -35,7 +35,8 @@ pico_sdk_init()
 
 # Add executable. Default name is the project name, version 0.1
 
-add_executable(BitDogLab_ADC_PWM_I2C BitDogLab_ADC_PWM_I2C.c )
+file(GLOB SOURCES "src/*.c")
+add_executable(BitDogLab_ADC_PWM_I2C BitDogLab_ADC_PWM_I2C.c ${SOURCES})
 
 pico_set_program_name(BitDogLab_ADC_PWM_I2C "BitDogLab_ADC_PWM_I2C")
 pico_set_program_version(BitDogLab_ADC_PWM_I2C "0.1")
@@ -47,17 +48,18 @@ pico_enable_stdio_usb(BitDogLab_ADC_PWM_I2C 1)
 # Add the standard library to the build
 target_link_libraries(BitDogLab_ADC_PWM_I2C
         pico_stdlib
-        hardware_pwm
-        hardware_adc)
+        )
 
 # Add the standard include files to the build
 target_include_directories(BitDogLab_ADC_PWM_I2C PRIVATE
-        ${CMAKE_CURRENT_LIST_DIR}
+        ${CMAKE_SOURCE_DIR}/include
 )
 
 # Add any user requested libraries
 target_link_libraries(BitDogLab_ADC_PWM_I2C 
-        
+        hardware_pwm
+        hardware_adc
+        hardware_i2c
         )
 
 pico_add_extra_outputs(BitDogLab_ADC_PWM_I2C)

@@ -2,14 +2,23 @@
 #include "pico/stdlib.h"
 #include "hardware/adc.h"
 #include "hardware/pwm.h"
+#include "include/ssd1306.h"
+#include "math.h"
 
 #define VRX_PIN 26
 #define VRY_PIN 27
+
 #define JOYSTICK_BUTTON 22
 #define BUTTON_A 5
+
 #define GREEN_LED 11
 #define BLUE_LED 12
 #define RED_LED 13
+
+#define I2C_PORT i2c1
+#define I2C_SDA 14
+#define I2C_SCL 15
+#define ADRESS 0x3C
 
 static volatile uint32_t last_time_joystick = 0; // Tempo de última interrupção do botão do joystick
 static volatile uint32_t last_time_A = 0;        // Tempo de última interrupção do botão A
@@ -81,16 +90,46 @@ int main()
     pwm_init_gpio(RED_LED, pwm_wrap);
     pwm_init_gpio(BLUE_LED, pwm_wrap);
 
+    // Inicializa comunicação I2C com o display OLED a 400kHz
+    i2c_init(I2C_PORT, 400 * 1000);
+
     uint32_t last_print_time = 0;
+
+    // Configuração dos pinos de SDA e SCL para comunicação I2C
+    gpio_set_function(I2C_SDA, GPIO_FUNC_I2C); // Set the GPIO pin function to I2C
+    gpio_set_function(I2C_SCL, GPIO_FUNC_I2C); // Set the GPIO pin function to I2C
+    gpio_pull_up(I2C_SDA);                     // Pull up the data line
+    gpio_pull_up(I2C_SCL);                     // Pull up the clock line
+    ssd1306_t ssd;                             // Inicializa a estrutura do display
+
+    // Inicializa o display OLED
+    ssd1306_init(&ssd, WIDTH, HEIGHT, false, ADRESS, I2C_PORT); // Inicializa o display
+    ssd1306_config(&ssd);                                       // Configura o display
+    ssd1306_send_data(&ssd);                                    // Envia os dados para o display
 
     while (true)
     {
         if (pwm_state)
         {
-            adc_select_input(1); // Eixo X
+            adc_select_input(0); // Eixo X
             uint16_t vrx_value = adc_read();
-            adc_select_input(0); // Eixo y
+            adc_select_input(1); // Eixo y
             uint16_t vry_value = adc_read();
+
+            
+            // printf("VRX: %d", vrx_value);
+            // printf("VRY: %d", vry_value);
+            
+            // Alterar caso o joystick esteja desregulado
+            uint16_t x_max_value = 4095;
+            uint16_t y_max_value = 4095;
+
+            uint16_t x_position = roundf(120 - (vrx_value * 120 / x_max_value));
+            uint16_t y_position = roundf(56 - (vry_value * 56 / y_max_value));
+
+            ssd1306_fill(&ssd, false);
+            ssd1306_rect(&ssd, y_position, x_position, 8, 8, true, true); // eixo y, eixo x, largura, altura, visibilidade, preenchimento
+            ssd1306_send_data(&ssd);                                      // Atualiza o display
 
             // Ajuste da escala
             vrx_value = (vrx_value >= 2047) ? (vrx_value - 2047) * 2 : (2048 - vrx_value) * 2; // x
@@ -104,18 +143,16 @@ int main()
             pwm_set_gpio_level(RED_LED, 0);
             pwm_set_gpio_level(BLUE_LED, 0);
         }
-        
-        sleep_ms(100);
     }
     return 0;
 }
 
-        // uint32_t current_time = to_ms_since_boot(get_absolute_time());
-        // if (current_time - last_print_time >= 1000)
-        // {
-        //     printf("VRX: %u --- Duty Cycle RED_LED: %.2f%%\n", vrx_value, (vrx_value / (float)(pwm_wrap)) * 100);
-        //     printf("VRY: %u --- Duty Cycle BLUE_LED: %.2f%%\n", vry_value, (vry_value / (float)(pwm_wrap)) * 100);
-        //     printf("Estado do LED Verde:%s\n", gpio_get(GREEN_LED) ? "ligado" : "desligado");
-        //     printf("Estado da PWM %s\n", pwm_state ? "ativada" : "desativada");
-        //     last_print_time = current_time;
-        // }
+// uint32_t current_time = to_ms_since_boot(get_absolute_time());
+// if (current_time - last_print_time >= 1000)
+// {
+//     printf("VRX: %u --- Duty Cycle RED_LED: %.2f%%\n", vrx_value, (vrx_value / (float)(pwm_wrap)) * 100);
+//     printf("VRY: %u --- Duty Cycle BLUE_LED: %.2f%%\n", vry_value, (vry_value / (float)(pwm_wrap)) * 100);
+//     printf("Estado do LED Verde:%s\n", gpio_get(GREEN_LED) ? "ligado" : "desligado");
+//     printf("Estado da PWM %s\n", pwm_state ? "ativada" : "desativada");
+//     last_print_time = current_time;
+// }
