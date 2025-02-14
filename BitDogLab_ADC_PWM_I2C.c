@@ -20,9 +20,17 @@
 #define I2C_SCL 15
 #define ADRESS 0x3C
 
+// Alterar caso o joystick esteja desregulado
+#define X_MAX_VALUE 4095
+#define Y_MAX_VALUE 4095
+
 static volatile uint32_t last_time_joystick = 0; // Tempo de última interrupção do botão do joystick
 static volatile uint32_t last_time_A = 0;        // Tempo de última interrupção do botão A
 bool pwm_state = true;
+bool rec_border_state = true;
+bool rec_dashed_border_state = false;
+static volatile uint8_t num_leds_x = 120; // 128-8 do quadrado 8x8
+static volatile uint8_t num_leds_y = 56;  // 64-8
 
 uint pwm_init_gpio(uint gpio, uint wrap)
 {
@@ -51,6 +59,19 @@ void handle_button_callback(uint gpio, uint32_t events)
     if (gpio == 22 && button_debounce(&last_time_joystick))
     {
         gpio_put(GREEN_LED, !gpio_get(GREEN_LED));
+        rec_border_state = !rec_border_state;
+        rec_dashed_border_state = !rec_dashed_border_state;
+
+        if (rec_border_state || rec_dashed_border_state)
+        {
+            num_leds_x -= 2;
+            num_leds_y -= 2;
+        }
+        else
+        {
+            num_leds_x += 2;
+            num_leds_y += 2;
+        }
     }
     else if (gpio == 5 && button_debounce(&last_time_A))
     {
@@ -90,6 +111,8 @@ int main()
     pwm_init_gpio(RED_LED, pwm_wrap);
     pwm_init_gpio(BLUE_LED, pwm_wrap);
 
+    ssd1306_t ssd; // Inicializa a estrutura do display
+
     // Inicializa comunicação I2C com o display OLED a 400kHz
     i2c_init(I2C_PORT, 400 * 1000);
 
@@ -100,7 +123,6 @@ int main()
     gpio_set_function(I2C_SCL, GPIO_FUNC_I2C); // Set the GPIO pin function to I2C
     gpio_pull_up(I2C_SDA);                     // Pull up the data line
     gpio_pull_up(I2C_SCL);                     // Pull up the clock line
-    ssd1306_t ssd;                             // Inicializa a estrutura do display
 
     // Inicializa o display OLED
     ssd1306_init(&ssd, WIDTH, HEIGHT, false, ADRESS, I2C_PORT); // Inicializa o display
@@ -109,28 +131,47 @@ int main()
 
     while (true)
     {
+        adc_select_input(1); // Eixo X
+        uint16_t vrx_value = adc_read();
+        adc_select_input(0); // Eixo y
+        uint16_t vry_value = adc_read();
+
+        // printf("VRX: %d", vrx_value);
+        // printf("VRY: %d", vry_value);
+
+        uint16_t x_position = roundf(num_leds_x - (vrx_value * num_leds_x / X_MAX_VALUE));
+        uint16_t y_position = roundf(num_leds_y - (vry_value * num_leds_y / Y_MAX_VALUE));
+
+        ssd1306_fill(&ssd, false);
+
+        if (rec_border_state)
+        {
+            ssd1306_rect(&ssd, 0, 0, 128, 64, true, false); // Desenha a  borda retângular
+            ssd1306_send_data(&ssd);                        // Atualiza o display
+        }
+
+        if (rec_dashed_border_state)
+        {
+                ssd1306_hline(&ssd, 0, 9, 0, true);
+                ssd1306_hline(&ssd, 0, 9, 63, true);
+                ssd1306_hline(&ssd, 118, 127, 0, true);
+                ssd1306_hline(&ssd, 118, 127, 63, true);
+                
+                ssd1306_vline(&ssd, 0, 0, 9, true);
+                ssd1306_vline(&ssd, 127, 0, 9, true);
+                ssd1306_vline(&ssd, 0, 54, 63, true);
+                ssd1306_vline(&ssd, 127, 54, 63, true);
+           
+                ssd1306_send_data(&ssd); 
+            
+        }
+        
+        // Quadrado 8x8
+        ssd1306_rect(&ssd, y_position, x_position, 8, 8, true, true); // eixo y, eixo x, largura, altura, visibilidade, preenchimento
+        ssd1306_send_data(&ssd);                                      // Atualiza o display
+
         if (pwm_state)
         {
-            adc_select_input(0); // Eixo X
-            uint16_t vrx_value = adc_read();
-            adc_select_input(1); // Eixo y
-            uint16_t vry_value = adc_read();
-
-            
-            // printf("VRX: %d", vrx_value);
-            // printf("VRY: %d", vry_value);
-            
-            // Alterar caso o joystick esteja desregulado
-            uint16_t x_max_value = 4095;
-            uint16_t y_max_value = 4095;
-
-            uint16_t x_position = roundf(120 - (vrx_value * 120 / x_max_value));
-            uint16_t y_position = roundf(56 - (vry_value * 56 / y_max_value));
-
-            ssd1306_fill(&ssd, false);
-            ssd1306_rect(&ssd, y_position, x_position, 8, 8, true, true); // eixo y, eixo x, largura, altura, visibilidade, preenchimento
-            ssd1306_send_data(&ssd);                                      // Atualiza o display
-
             // Ajuste da escala
             vrx_value = (vrx_value >= 2047) ? (vrx_value - 2047) * 2 : (2048 - vrx_value) * 2; // x
             vry_value = (vry_value >= 2047) ? (vry_value - 2047) * 2 : (2048 - vry_value) * 2; // y
